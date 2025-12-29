@@ -1,0 +1,922 @@
+
+\ProvidesPackage{UIPlus}[12/28/2025]
+
+\RequirePackage{xparse}
+\RequirePackage{etoolbox}
+\RequirePackage{pgfkeys}
+
+\newcommand\showwithwarning[1]{\PackageWarning{UIPlus}{#1}}
+%%%%%%%%%%%%%%%%
+
+% options
+
+%%%%%%%%%%%
+
+\newcommand\@UIPlusChangeArgValueCsname{%
+	change\@UIPlusCurrentUIArg value%
+}
+
+\newcommand\dothecommand{\UIPlusDoCurrentUserCommandtrue}
+
+\newcommand\dontcheckagain{\csname UIPlus\@UIPlusCurrentCallCsname TrueDetectedtrue\endcsname}
+
+%%%%%%%%%%%%%%%%
+
+% misc
+
+%%%%%%%%%%%
+
+\newcounter{@UIPlusCurrentListSize}
+
+
+\newcommand\@UIPlusGetListSize[1]{%
+	\listcsgadd{#1}{\relax}% add \relax to the end to indicate the end of the list; this is required to detect empty lists
+	\edef\@UIPlusGetListSizeListName{#1}%
+	\setcounter{@UIPlusCurrentListSize}{0}%
+	\forlistcsloop{\@UIPlusGetListSizeIterator}{#1}%
+}% first arg is the name of the list
+
+\newcommand\@UIPlusGetListSizeIterator[1]{% The only thing that has to be done each iteration is stepping the relevant iternum; argument specified to prevent typesetting it
+	\ifx#1\relax% check if reached the end of the list
+		\listcsgremove{\@UIPlusGetListSizeListName}{\relax}% remove the added \relax
+		\listbreak%
+	\else%
+		\stepcounter{@UIPlusCurrentListSize}% step the counter if not at end yet
+	\fi%
+}
+
+
+%%%%%%%%%%%%%%%%%
+
+% pgf keys setup
+
+%%%%%%%%%%%%%%%%
+\pgfkeys{
+	/UIPlus/.is family,
+	/UIPlus/.cd,
+	arg csname/.code={%
+		\edef\@UIPlusNascentArgCsname{#1}%
+	},
+	arg default/.code={%
+		\edef\@UIPlusNascentDefault{#1}%
+	},
+	call csname/.code={%
+		\edef\@UIPlusNascentCallCsname{#1}%
+	},
+	new UIArg check/.code={%
+		\@UIPlusNewUIArgCheck%
+	},
+	renew UIArg check/.code={%
+		\@UIPlusRenewUIArgCheck%
+	},
+	declare UIArg check/.code={%
+		\@UIPlusDeclareUIArgCheck%
+	},
+	provide UIArg check/.code={%
+		\@UIPlusProvideUIArgCheck%
+	},
+	set UIArg defaults/.code={%
+		\@UIPlusSetUIArgDefaults%
+	},
+	process UIArg inputs/.code={%
+		\@UIPlusProcessUIArgInputs%
+	},
+}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% UIArg Background commands
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\newcommand\@UIPlusSetUIArgDefaults{%
+	\def\@UIPlusNascentArgCsname{\relax}%
+	\def\@UIPlusNascentDefault{\relax}%
+	\def\@UIPlusNascentCallCsname{\relax}%
+}
+\@UIPlusSetUIArgDefaults
+
+
+\newcommand\@UIPlusDefineValueChangeCommand[1]{%
+	\edef\@UIPlusCurrentUIArg{#1}%
+	\ifcsdef{\@UIPlusChangeArgValueCsname}{%do nothing if already defined
+		}{%
+		\expandafter\newcommand\csname \@UIPlusChangeArgValueCsname\endcsname[1]{%
+			\expandafter\edef\csname #1\endcsname{##1}%
+			\forlistcsloop{\@UIPlusReDefCommandsForCommandType}{@UIPlus#1CommandTypes}%
+		}%
+	}%
+}
+
+
+\newcommand\@UIPlusProcessUIArgInputs{% 
+	\ifUIPlusDoUIArgDefinition%
+		\ifx\@UIPlusNascentArgCsname\relax
+			\PackageError{UIPlus}{Argument command string name not specified}{Make sure that you specify the csname that will be used to refer to the argument you are trying to define (in an argument specification).}%
+		\fi%
+		\ifx\@UIPlusNascentDefault\relax
+			\PackageError{UIPlus}{Argument default value not specified}{Make sure that you specify default token/character that will be used to invoke the argument you are trying to define.}%
+		\fi%
+		\ifx\@UIPlusNascentCallCsname\relax
+			\PackageError{UIPlus}{Argument call csname fragment not specified.}{Make sure that you specify the csname fragment that will be used to specify what code is executed when your the argument you are trying to define is invoked.}%
+		\fi%
+		\expandafter\@UIPlusDefineValueChangeCommand\expandafter{\@UIPlusNascentArgCsname}%
+		\expandafter\@UIPlusMakeTFCodeDefinitionCommands\expandafter{\@UIPlusNascentCallCsname}%
+		\expandafter\expandafter\expandafter\edef\expandafter\csname\@UIPlusNascentArgCsname\expandafter\endcsname{\@UIPlusNascentDefault}% Defining commands to store info about the arg
+		\expandafter\expandafter\expandafter\edef\expandafter\csname @UIPlus\@UIPlusNascentArgCsname Default\expandafter\endcsname{\@UIPlusNascentDefault}%
+		\ifcsdef{@UIPlus\@UIPlusNascentArgCsname CallCsname}%
+			{%
+			\edef\@UIPlusOldCallCsname{\csname @UIPlus\@UIPlusNascentArgCsname CallCsname\endcsname}%
+			}{%
+			\def\@UIPlusOldCallCsname{\relax}%
+		}%
+		\expandafter\expandafter\expandafter\edef\expandafter\csname @UIPlus\@UIPlusNascentArgCsname CallCsname\expandafter\endcsname{\@UIPlusNascentCallCsname}%
+		\expandafter\edef\csname \@UIPlusNascentCallCsname\endcsname{\@UIPlusNascentDefault}% defining call csname to default value
+		\@UIPlusGetListSize{@UIPlus\@UIPlusNascentArgCsname CommandTypes}%
+		\ifnum\value{@UIPlusCurrentListSize}>0%
+			\ifx\@UIPlusOldCallCsname\relax% check if an Old Call Csname exists
+			\else%
+				\@UIPlusUpdateUserCommandTFCodeCsnames%
+			\fi%
+			\forlistcsloop{\@UIPlusReDefCommandsForCommandType}{@UIPlus\@UIPlusNascentArgCsname CommandTypes}% updating command types and associated commands with new default value
+		\fi%
+		\xifinlistcs{\@UIPlusNascentArgCsname}{@UIPlusArgCsnameList}%
+			{% Already accounted for the need to raise error earlier, if true, nothing must be done to the list of argcsnames
+			}%
+			{%
+				\listxadd\@UIPlusArgCsnameList{\@UIPlusNascentArgCsname}%
+				\expandafter\listgadd\expandafter\@UIPlusdefaultlist\expandafter{\csname @UIPlus\@UIPlusNascentArgCsname Default\expandafter\endcsname}% Don't expand, so updates from UIArg redef or change value commands are carried over
+				\expandafter\listgadd\expandafter\@UIPlusCallCsnameList\expandafter{\csname @UIPlus\@UIPlusNascentArgCsname CallCsname\expandafter\endcsname}%
+		}%
+		\ifcsdef{ifUIPlus\@UIPlusNascentCallCsname TrueDetected}%
+			{% Nothing if true
+			}{%
+			\expandafter\newif\csname ifUIPlus\@UIPlusNascentCallCsname TrueDetected\endcsname%
+		}%
+	\fi%
+}
+
+
+\newcommand\@UIPlusUpdateUserCommandTFCodeCsnames{%
+	\forlistcsloop\@UIPlusUpdateUserCommandTFCodeCommandTypeIterator{@UIPlus\@UIPlusNascentArgCsname CommandTypes}%
+}
+	\newcommand\@UIPlusUpdateUserCommandTFCodeCommandTypeIterator[1]{% arg is command type
+		\forlistcsloop\@UIPlusUpdateUserCommandTFCodeUserCommandIterator{@UIPlus#1UserCsnameList}%
+	}
+	\newcommand\@UIPlusUpdateUserCommandTFCodeUserCommandIterator[1]{% arg is usercsname
+		\ifcsdef{#1\@UIPlusOldCallCsname TCode}%
+			{%
+			\csletcs{#1\@UIPlusNascentCallCsname TCode}{#1\@UIPlusOldCallCsname TCode}%
+			}{%
+		}%
+		\ifcsdef{#1\@UIPlusOldCallCsname FCode}%
+			{%
+			\csletcs{#1\@UIPlusNascentCallCsname FCode}{#1\@UIPlusOldCallCsname FCode}%
+			}{%
+		}%
+	}
+	
+
+
+% definitions to be done at the beginning of the document (-> can change certain settings in preamble with no adverse effects)
+%\newcommand\@UIPlusDefineUIArgCommands{
+%	\forlistcsloop\@UIPlusDefineUIArgCommandsIterator{}}
+%
+%\AtBeginDocument{}
+
+%% new/provide/declare/renew checks
+\newif\ifUIPlusDoUIArgDefinition
+\UIPlusDoUIArgDefinitionfalse
+
+
+\newcommand\@UIPlusNewUIArgCheck{
+	\ifcsdef{\@UIPlusNascentArgCsname}%
+		{%
+			\UIPlusDoUIArgDefinitionfalse%
+			\PackageError{UIPlus}{UI argument "\@UIPlusNascentArgCsname" already defined.}{When using \@UIPlusCurrentUIArgDefCsname, make sure that the UI argument you are trying to define is not already defined.}%
+		}%
+		{%
+		\UIPlusDoUIArgDefinitiontrue%
+	}%
+}
+
+
+\newcommand\@UIPlusRenewUIArgCheck{
+	\ifcsdef{\@UIPlusNascentArgCsname}%
+		{%
+			\UIPlusDoUIArgDefinitiontrue%
+		}%
+		{%
+			\UIPlusDoUIArgDefinitionfalse%
+			\PackageError{UIPlus}{UI argument "\@UIPlusNascentArgCsname" is not defined.}{When using \@UIPlusCurrentUIArgDefCsname, make sure that the UI argument you are trying to define is already defined.}%
+	}%
+}
+
+\newcommand\@UIPlusDeclareUIArgCheck{%
+	\UIPlusDoUIArgDefinitiontrue%
+}
+
+\newcommand\@UIPlusProvideUIArgCheck{%
+	\ifcsdef{\@UIPlusNascentArgCsname}%
+		{%
+			\UIPlusDoUIArgDefinitionfalse%
+		}%
+		{%
+			\UIPlusDoUIArgDefinitiontrue%
+	}%
+}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% pgfkeys UI arg def'n
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\NewDocumentCommand\KeyNewUIArg{t! t? m}{%
+	\def\@UIPlusCurrentUIArgDefCsname{\@backslashchar KeyNewUIArg}%
+	\pgfkeys{/UIPlus/.cd, set UIArg defaults,
+		#3,
+		new UIArg check,
+		process UIArg inputs,
+	}%
+}
+\NewDocumentCommand\KeyRenewUIArg{t! t? m}{%
+	\def\@UIPlusCurrentUIArgDefCsname{\@backslashchar KeyRenewUIArg}%
+	\pgfkeys{/UIPlus/.cd, set UIArg defaults,
+		#3,
+		renew UIArg check,
+		process UIArg inputs,
+	}%
+}
+\NewDocumentCommand\KeyDeclareUIArg{t! t? m}{%
+		\def\@UIPlusCurrentUIArgDefCsname{\@backslashchar KeyDeclareUIArg}%
+	\pgfkeys{/UIPlus/.cd, set UIArg defaults,
+		#3,
+		declare UIArg check,
+		process UIArg inputs,
+	}%
+}
+\NewDocumentCommand\KeyProvideUIArg{t! t? m}{%
+	\def\@UIPlusCurrentUIArgDefCsname{\@backslashchar KeyProvideUIArg}%
+	\pgfkeys{/UIPlus/.cd, set UIArg defaults,
+		#3,
+		provide UIArg check,
+		process UIArg inputs,
+	}%
+}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% successive command-based UI arg definition
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\NewDocumentCommand\SetUIArgCsname{t! t? m}{%
+	\edef\@UIPlusNascentArgCsname{#3}%
+}
+
+\NewDocumentCommand\SetUIArgDefault{t! t? m}{%
+	\edef\@UIPlusNascentDefault{#3}%
+}
+
+\NewDocumentCommand\SetUIArgCallCsname{m}{%
+	\edef\@UIPlusNascentCallCsname{#1}%
+}
+
+\NewDocumentCommand\BuildNewUIArg{}{%
+	\def\@UIPlusCurrentUIArgDefCsname{\@backslashchar buildnewUIArg}%
+	\@UIPlusNewUIArgCheck%
+	\@UIPlusProcessUIArgInputs%
+	\@UIPlusSetUIArgDefaults%
+}
+
+\NewDocumentCommand\BuildRenewUIArg{}{%
+	\def\@UIPlusCurrentUIArgDefCsname{\@backslashchar buildrenewUIArg}%
+	\@UIPlusRenewUIArgCheck%
+	\@UIPlusProcessUIArgInputs%
+	\@UIPlusSetUIArgDefaults%
+}
+
+\NewDocumentCommand\BuildProvideUIArg{}{%
+	\def\@UIPlusCurrentUIArgDefCsname{\@backslashchar buildprovideUIArg}%
+	\@UIPlusProvideUIArgCheck%
+	\@UIPlusProcessUIArgInputs%
+	\@UIPlusSetUIArgDefaults%
+}
+
+\NewDocumentCommand\BuildDeclareUIArg{}{%
+	\def\@UIPlusCurrentUIArgDefCsname{\@backslashchar builddeclareUIArg}%
+	\@UIPlusDeclareUIArgCheck%
+	\@UIPlusProcessUIArgInputs%
+	\@UIPlusSetUIArgDefaults%
+}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% command types
+% idea: define a type of command and associated UI args for that command. Goal: use \new,\renew,... like nornmal UI args are implied and handled by the following code
+
+% new/renew/... UI command type
+% to define new commands: will use \new___command, \renew___command
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+%pgf keys setup
+\pgfkeys{
+	/UIPlus/.cd,
+	name/.code={%
+	\edef\@UIPlusNascentCommandTypeName{#1}},
+	ui args/.code={%
+	\edef\@UIPlusNascentCommandTypeUIArgCsvList{#1}},
+	new command type check/.code={\@UIPlusNewCommandTypeCheck},
+	renew command type check/.code={\@UIPlusRenewCommandTypeCheck},
+	provide command type check/.code={\@UIPlusProvideCommandTypeCheck},
+	declare command type check/.code={\@UIPlusDeclareCommandTypeCheck},
+	process command type inputs/.code={%
+	\@UIPlusProcessCommandTypeInputs},
+	set command type defaults/.code={%
+	\@UIPlusSetCommandTypeDefaults},
+}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% command type background commmands
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\newif\ifUIPlusDoCommandTypeDefinition
+\UIPlusDoCommandTypeDefinitionfalse
+
+
+\newcommand\@UIPlusNewCommandTypeCheck{%
+	\ifcsdef{@UIPlus\@UIPlusNascentCommandTypeName UIArgCsvList}%
+	{%
+		\UIPlusDoCommandTypeDefinitionfalse%
+		\PackageError{UIPlus}{Command type "\@UIPlusNascentCommandTypeName" already defined.}{When using \@UIPlusCurrentUIArgDefCsname, make sure that the command type you are trying to define is not already defined.}%
+	}%
+	{%
+		\UIPlusDoCommandTypeDefinitiontrue%
+	}%
+}
+
+
+\newcommand\@UIPlusRenewCommandTypeCheck{%
+	\ifcsdef{@UIPlus\@UIPlusNascentCommandTypeName UIArgCsvList}%
+	{%
+		\UIPlusDoCommandTypeDefinitiontrue%
+	}%
+	{%
+		\UIPlusDoCommandTypeDefinitionfalse%
+		\PackageError{UIPlus}{Command type "\@UIPlusNascentCommandTypeName" is not defined.}{When using \@UIPlusCurrentCommandTypeDefCsname, make sure that the command type you are trying to define is already defined.}%
+	}%
+}
+
+\newcommand\@UIPlusDeclareCommandTypeCheck{%
+	\UIPlusDoCommandTypeDefinitiontrue%
+}
+
+\newcommand\@UIPlusProvideCommandTypeCheck{%
+	\ifcsdef{@UIPlus\@UIPlusNascentCommandTypeName UIArgCsvList}%
+	{%
+		\UIPlusDoCommandTypeDefinitionfalse%
+	}%
+	{%
+		\UIPlusDoCommandTypeDefinitiontrue%
+	}%
+}
+
+\listadd\@UIPlusAllCommandTypeNameList{}% initialize list to prevent issues later
+\listadd\@UIPlusCommandTypeUIArgsCsvListsList{}
+
+\newcommand\@UIPlusProcessCommandTypeInputs{%
+	\ifUIPlusDoCommandTypeDefinition
+		\ifx\@UIPlusNascentCommandTypeName\relax%
+			\PackageError{UIPlus}{Command type name not specified.}{Make sure that a command type name is defined when calling \@UIPlusCurrentCommandTypeDefCsname.}%
+		\fi%
+		\ifx\@UIPlusNascentCommandTypeUIArgCsvList\relax%
+			\PackageError{UIPlus}{Command type UI arguments not specified.}{Make sure that the UI arguments for a new command type are defined when calling \@UIPlusCurrentCommandTypeDefCsname.}%
+		\fi%
+		\ifcsdef{@UIPlus\@UIPlusNascentCommandTypeName UIArgCsvList}% check if old csv list of UI Args exists
+			{%
+			\@UIPlusProcessNewAndOldUIArgLists%
+			}{%
+			\ExpandArgs{x}\newcounter{@UIPlus\@UIPlusNascentCommandTypeName TimesRedef}%
+			\expandafter\def\csname @UIPlus\@UIPlusNascentCommandTypeName OldCommandTypesList\endcsname{}% initialized for later
+		}%
+		\expandafter\edef\csname @UIPlus\@UIPlusNascentCommandTypeName UIArgCsvList\endcsname{\@UIPlusNascentCommandTypeUIArgCsvList}%
+		\expandafter\@UIPlusUpdateUIArgLists\expandafter{\@UIPlusNascentCommandTypeName}%
+		\expandafter\@UIPlusUpdateUIArgSpec\expandafter{\@UIPlusNascentCommandTypeName}%
+		\expandafter\@UIPlusCreateUserCommandDefinitionCommands\expandafter{\@UIPlusNascentCommandTypeName}%
+		\expandafter\@UIPlusDefineUIArgCheckCommand\expandafter{\@UIPlusNascentCommandTypeName}%
+		\xifinlistcs{\@UIPlusNascentCommandTypeName}{@UIPlusAllCommandTypeNameList}%
+		{% Already accounted for the need to raise error earlier, if true, nothing must be done to the list of commandtypecsnames
+		}%
+		{%
+			\listxadd\@UIPlusAllCommandTypeNameList{\@UIPlusNascentCommandTypeName}% This list also includes command types defined by this package for when commandtypes are redefined via Renew or Declare commands
+			\listxadd\@UIPlusUserDefinedCommandTypeNameList{\@UIPlusNascentCommandTypeName}% User only to differentiate between the types explicitly defined by the user and ones defined in redefinitions
+			\expandafter\listgadd\expandafter\@UIPlusCommandTypeUIArgsCsvListsList\expandafter{\csname @UIPlus\@UIPlusNascentCommandTypeName UIArgCsvList\expandafter\endcsname}% Don't expand, so updates from UIArg redef or change value commands are carried over
+		}%
+	\fi%
+}
+
+
+\newcounter{@UIPlusOldUIArgListSize}
+\newcounter{@UIPlusNewUIArgListSize}
+\newif\ifUIPlusOldNewUIArgsSame
+\newcommand\@UIPlusProcessNewAndOldUIArgLists{%
+	\UIPlusOldNewUIArgsSametrue%
+	\def\@UIPlusListOfNumbersToCheck{}% reset this list
+	\setcounter{@UIPlusNewUIArgListSize}{0}%
+	\setcounter{@UIPlusOldUIArgListSize}{0}%
+	\ExpandArgs{Nx}\forcsvlist\@UIPlusOldUIArgListBuilder{\csname @UIPlus\@UIPlusNascentCommandTypeName UIArgCsvList\endcsname}%
+	\ExpandArgs{Nx}\forcsvlist\@UIPlusNewUIArgListBuilder{\@UIPlusNascentCommandTypeUIArgCsvList}%
+	\ifnum\value{@UIPlusOldUIArgListSize}=\value{@UIPlusNewUIArgListSize}%
+		\forlistloop\@UIPlusCheckUIArgsForEqualityIterator\@UIPlusListOfNumbersToCheck%
+	\else%
+		\UIPlusOldNewUIArgsSamefalse%
+	\fi%
+	\ifUIPlusOldNewUIArgsSame%
+		\showwithwarning{Same New and Old UIArgs}%
+	\else%
+		\showwithwarning{Different new and old UIArgs}%
+		\stepcounter{@UIPlus\@UIPlusNascentCommandTypeName TimesRedef}%
+		\listcsxadd{@UIPlus\@UIPlusNascentCommandTypeName OldCommandTypesList}{\arabic{@UIPlus\@UIPlusNascentCommandTypeName TimesRedef}}%
+		\ExpandArgs{x}\@UIPlusSetOldUserCommandsToSeparateCommandType{Old\arabic{@UIPlus\@UIPlusNascentCommandTypeName TimesRedef}\@UIPlusNascentCommandTypeName}%
+	\fi%
+}
+	\newcommand\@UIPlusNewUIArgListBuilder[1]{%
+		\stepcounter{@UIPlusNewUIArgListSize}%
+		\expandafter\edef\csname @UIPlusNewUIArgListEntry\arabic{@UIPlusNewUIArgListSize}\endcsname{#1}%
+		\listxadd\@UIPlusListOfNumbersToCheck{\arabic{@UIPlusNewUIArgListSize}}%
+	}
+	\newcommand\@UIPlusOldUIArgListBuilder[1]{%
+		\stepcounter{@UIPlusOldUIArgListSize}%
+		\expandafter\edef\csname @UIPluOldUIArgListEntry\arabic{@UIPlusOldUIArgListSize}\endcsname{#1}%
+	}
+	\newcommand\@UIPlusCheckUIArgsForEqualityIterator[1]{%
+		\IfStrEq{@UIPlusNewUIArgListEntry#1}{@UIPlusOldUIArgListEntry#1}%
+			{% ARE equal: seem equal -> do nothing since already set to true
+			}{%
+			\UIPlusOldNewUIArgsSamefalse%
+		}%
+	}
+
+% Still need to get UIArg lists and checks ready and then do the redefinition
+\newcommand\@UIPlusSetOldUserCommandsToSeparateCommandType[1]{% arg is the new command type name as a placeholder for OLD user csnames
+	\showwithwarning{New Command Type: #1}%
+	\ExpandArgs{x}\@UIPlusGetListSize{@UIPlus\@UIPlusNascentCommandTypeName UserCsnameList}%
+	\ifnum\value{@UIPlusCurrentListSize}>0%
+		\expandafter\edef\csname @UIPlus#1UIArgCsvList\endcsname{\csname @UIPlus\@UIPlusNascentCommandTypeName UIArgCsvList\endcsname}% saving old csv list for use later
+		\@UIPlusUpdateUIArgLists{#1}%
+		\@UIPlusUpdateUIArgSpec{#1}%
+		\@UIPlusDefineUIArgCheckCommand{#1}%
+		\listxadd\@UIPlusAllCommandTypeNameList{#1}%
+		\expandafter\listgadd\expandafter\@UIPlusCommandTypeUIArgsCsvListsList\expandafter{\csname @UIPlus#1UIArgCsvList\expandafter\endcsname}%
+		\edef\@UIPlusCurrentArgSpec{\csname @UIPlus#1UIArgSpec\endcsname}%
+		\showwithwarning{Csname: @UIPlus#1UIArgSpec -> \meaning\@UIPlusCurrentArgSpec}%
+		\forlistcsloop{\@UIPlusSetOldUserCommandsToSeparateCommandTypeIterator{#1}}{@UIPlus\@UIPlusNascentCommandTypeName UserCsnameList}%
+		\expandafter\def\csname @UIPlus\@UIPlusNascentCommandTypeName UserCsnameList\endcsname{}% reset old list
+	\fi%
+}
+	\newcommand\@UIPlusSetOldUserCommandsToSeparateCommandTypeIterator[2]{% first arg is command type
+		\ExpandArgs{xx}\@UIPlusExecuteDeclareCommandDefinition{#1}{#2}%
+		\listcsxadd{@UIPlus#1UserCsnameList}{#2}%
+	}
+	
+	
+%\edef\@UIPlusCurrentCommandType{#1}%
+%		\StrGobbleLeft{\string ##1}{1}[\@UIPlusNascentCommandCsname]%
+%		\expandafter\NewDocumentCommand\csname \@UIPlusNascentCommandCsname Meaning\endcsname{##2}{##3}% defines command without UI stuff
+%		\@UIPlusSetUIArgCallCode{\@UIPlusNascentCommandCsname}% sets T/F Code for all UI args for the upcoming command
+%		\edef\@UIPlusCurrentArgSpec{\csname @UIPlus\@UIPlusCurrentCommandType UIArgSpec\endcsname}%
+%		\ExpandArgs{xx}\@UIPlusExecuteNewCommandDefinition{\@UIPlusCurrentCommandType}{\@UIPlusNascentCommandCsname}%
+%		\listcsxadd{@UIPlus#1UserCsnameList}{\@UIPlusNascentCommandCsname}%
+
+\newcommand\@UIPlusUpdateUIArgLists[1]{%
+	\edef\@UIPlusCurrentCommandType{#1}%
+	\edef\@UIPlusCurrentArgCsvList{\csname @UIPlus\@UIPlusCurrentCommandType UIArgCsvList\endcsname}%
+	\listcsgadd{@UIPlus\@UIPlusCurrentCommandType UIArgs}{}% intialize in case it doesn't yet exist.
+	\expandafter\forcsvlist\expandafter\@UIPlusRemoveFromUIArgListsIterator\expandafter{\@UIPlusCurrentArgCsvList}%
+	\expandafter\def\csname @UIPlus\@UIPlusCurrentCommandType UIArgNameList\endcsname{}%
+	\expandafter\forcsvlist\expandafter\@UIPlusAddToUIArgListsIterator\expandafter{\@UIPlusCurrentArgCsvList}%
+}
+
+
+	\newcommand\@UIPlusRemoveFromUIArgListsIterator[1]{%
+		\expandafter\listcsgremove\expandafter{@UIPlus#1CommandTypes\expandafter}\expandafter{\@UIPlusCurrentCommandType}%
+	}
+	\newcommand\@UIPlusAddToUIArgListsIterator[1]{%
+		\xifinlistcs{\@UIPlusCurrentCommandType}{@UIPlus#1CommandTypes}% check is necessary for repeated UI args for a command type; prevents unnecssary changing of code
+			{% Already in list: do nothing
+			}{%
+			\listcsxadd{@UIPlus#1CommandTypes}{\@UIPlusCurrentCommandType}%
+		}%
+		\listcsxadd{@UIPlus\@UIPlusCurrentCommandType UIArgNameList}{#1}% no check since repeats must be accounted for in this list
+	}
+
+\newcommand\@UIPlusSetCommandTypeDefaults{%
+	\def\@UIPlusNascentCommandTypeName{\relax}%
+	\def\@UIPlusNascentCommandTypeUIArgCsvList{\relax}%
+}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% UI command background
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% argument handling
+
+\newif\ifUIPlusDoCurrentUserCommand
+\UIPlusDoCurrentUserCommandfalse
+
+\newcounter{@UIPlusCurrentUIArgNum}
+\newcommand\@UIPlusStoreCurrentUIArgCheck[1]{%
+	\stepcounter{@UIPlusCurrentUIArgNum}%
+	\IfBooleanTF{#1}{%
+		\expandafter\def\csname @UIPlusCurrentUIArgCheck\arabic{@UIPlusCurrentUIArgNum}\endcsname{t}%
+		}{%
+		\expandafter\def\csname @UIPlusCurrentUIArgCheck\arabic{@UIPlusCurrentUIArgNum}\endcsname{f}%
+	}%
+}
+
+
+
+\newcommand\@UIPlusUpdateUIArgSpec[1]{%
+	\edef\@UIPlusCurrentCommandType{#1}%
+	\expandafter\edef\csname @UIPlus\@UIPlusCurrentCommandType UIArgSpec\endcsname{}% delete previous stuff, if necessary.
+	\expandafter\edef\csname @UIPlus\@UIPlusCurrentCommandType UIArgValueList\endcsname{}%
+	\expandafter\edef\csname @UIPlus\@UIPlusCurrentCommandType CallCsnameList\endcsname{}%
+	\forlistcsloop\@UIPlusUpdateUIArgSpeciterator{@UIPlus\@UIPlusCurrentCommandType UIArgNameList}%
+	\expandafter\edef\csname @UIPlus\@UIPlusCurrentCommandType UIArgSpec\endcsname{%
+		\forlistcsloop\@UIPlusgenerateUIArgSpeciterator{@UIPlus\@UIPlusCurrentCommandType UIArgValueList}%
+	}%
+}
+
+
+
+	\newcommand\@UIPlusUpdateUIArgSpeciterator[1]{%
+		\listcsxadd{@UIPlus\@UIPlusCurrentCommandType UIArgValueList}{\csname #1\endcsname}%
+		\listcsxadd{@UIPlus\@UIPlusCurrentCommandType CallCsnameList}{\csname @UIPlus#1CallCsname\endcsname}%
+	}
+	\newcommand\@UIPlusgenerateUIArgSpeciterator[1]{%
+		>{\noexpand\noexpand\noexpand\@UIPlusStoreCurrentUIArgCheck}t#1%
+	}%
+
+	
+\newcommand\@UIPlusDefineUIArgCheckCommand[1]{%
+	\expandafter\def\csname @UIPlus#1UIArgCheck\endcsname{% will be used out of this context -> #1 instead of \__currentcommandtype
+		\setcounter{@UIPlusCurrentUIArgNum}{0}%
+		\UIPlusDoCurrentUserCommandtrue%
+		\forlistcsloop\@UIPlussetTrueDetectedfalse{@UIPlus#1CallCsnameList}%
+		\forlistcsloop\@UIPlusUIArgCheckIterator{@UIPlus#1CallCsnameList}%
+		\setcounter{@UIPlusCurrentUIArgNum}{0}% done for future UI arg checks from argukment processors
+	}%
+}
+
+	\newcommand\@UIPlussetTrueDetectedfalse[1]{%
+		\csname UIPlus#1TrueDetectedfalse\endcsname%
+	}%
+	\newcommand\@UIPlusUIArgCheckIterator[1]{% iterates over CallCsnames
+		\stepcounter{@UIPlusCurrentUIArgNum}%
+		\edef\@UIPlusCurrentCallCsname{#1}%
+		\csname ifUIPlus#1TrueDetected\endcsname%
+		\else%
+			\expandafter\if\csname @UIPlusCurrentUIArgCheck\arabic{@UIPlusCurrentUIArgNum}\endcsname t% check if result of first check was true
+				\UIPlusDoCurrentUserCommandfalse%
+				\csname \@UIPlusCurrentCommandCsname #1TCode\endcsname% calls the command specified by the UI argument
+				\csname UIPlus#1TrueDetectedtrue\endcsname%
+			\else%
+				\csname \@UIPlusCurrentCommandCsname #1FCode\endcsname% calls the command specified by the UI argument
+			\fi%
+		\fi%
+	}
+	
+	
+	
+\newcommand\@UIPlusSetUIArgCallCode[1]{% arg is nascent csname
+	\forlistcsloop\@UIPlusSetUIArgCallCodeIterator{@UIPlus\@UIPlusCurrentCommandType CallCsnameList}%	
+}
+	
+	\newcommand\@UIPlusSetUIArgCallCodeIterator[1]{%
+		\expandafter\expandafter\expandafter\ifx\csname @UIPlusNascent#1TCode\endcsname\relax% accounts for repeated args
+		\else%
+			\csletcs{\@UIPlusNascentCommandCsname #1TCode}{@UIPlusNascent#1TCode}%
+			\expandafter\def\csname @UIPlusNascent#1TCode\endcsname{\relax}%
+		\fi%
+		\expandafter\expandafter\expandafter\ifx\csname @UIPlusNascent#1FCode\endcsname\relax%
+		\else%
+			\csletcs{\@UIPlusNascentCommandCsname #1FCode}{@UIPlusNascent#1FCode}%
+			\expandafter\def\csname @UIPlusNascent#1FCode\endcsname{\relax}%
+		\fi%
+		\ifcsdef{\@UIPlusNascentCommandCsname #1FCode}%
+			{%
+			}{%
+			\expandafter\def\csname \@UIPlusNascentCommandCsname #1FCode\endcsname{}%
+		}%
+		\ifcsdef{\@UIPlusNascentCommandCsname #1TCode}%
+			{%
+			}{%
+			\expandafter\def\csname \@UIPlusNascentCommandCsname #1TCode\endcsname{}%
+		}%
+	}
+	
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% command type successive command definition
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+\NewDocumentCommand\SetCommandTypeName{t! t? m}{%
+	\edef\@UIPlusNascentCommandTypeName{#3}%
+}
+
+\NewDocumentCommand\SetCommandTypeUIArgs{t! t? m}{%
+	\edef\@UIPlusNascentCommandTypeUIArgCsvList{#3}%
+}
+
+\NewDocumentCommand\BuildNewCommandType{}{%
+	\def\@UIPlusCurrentCommandTypeDefCsname{\@backslashchar buildnewcommandtype}%
+	\@UIPlusNewCommandTypeCheck%
+	\@UIPlusProcessCommandTypeInputs%
+	\@UIPlusSetCommandTypeDefaults%
+}
+
+\NewDocumentCommand\BuildRenewCommandType{}{%
+	\def\@UIPlusCurrentCommandTypeDefCsname{\@backslashchar buildrenewcommandtype}%
+	\@UIPlusRenewCommandTypeCheck%
+	\@UIPlusProcessCommandTypeInputs%
+	\@UIPlusSetCommandTypeDefaults%
+}
+
+\NewDocumentCommand\BuildProvideCommandType{}{%
+	\def\@UIPlusCurrentCommandTypeDefCsname{\@backslashchar buildprovidecommandtype}%
+	\@UIPlusProvideCommandTypeCheck%
+	\@UIPlusProcessCommandTypeInputs%
+	\@UIPlusSetCommandTypeDefaults%
+}
+
+\NewDocumentCommand\BuildDeclareCommandType{}{%
+	\def\@UIPlusCurrentCommandTypeDefCsname{\@backslashchar builddeclarecommandtype}%
+	\@UIPlusDeclareCommandTypeCheck%
+	\@UIPlusProcessCommandTypeInputs%
+	\@UIPlusSetCommandTypeDefaults%
+}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% pgfkeys command type definition
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\NewDocumentCommand\KeyNewCommandType{t! t? m}{%
+	\def\@UIPlusCurrentCommandTypeDefCsname{\@backslashchar KeyNewCommandType}%
+	\pgfkeys{/UIPlus/.cd, set command type defaults,
+		#3,
+		new command type check,
+		process command type inputs,
+	}%
+}
+\NewDocumentCommand\KeyRenewCommandType{t! t? m}{%
+	\def\@UIPlusCurrentCommandTypeDefCsname{\@backslashchar KeyRenewCommandType}%
+	\pgfkeys{/UIPlus/.cd, set command type defaults,
+		#3,
+		renew command type check,
+		process command type inputs,
+	}%
+}
+\NewDocumentCommand\KeyDeclareCommandType{t! t? m}{%
+	\def\@UIPlusCurrentCommandTypeDefCsname{\@backslashchar KeyDeclareCommandType}%
+	\pgfkeys{/UIPlus/.cd, set command type defaults,
+		#3,
+		declare command type check,
+		process command type inputs,
+	}%
+}
+\NewDocumentCommand\KeyProvideCommandType{t! t? m}{%
+	\def\@UIPlusCurrentCommandTypeDefCsname{\@backslashchar KeyProvideCommandType}%
+	\pgfkeys{/UIPlus/.cd, set command type defaults,
+		#3,
+		provide command type check,
+		process command type inputs,
+	}%
+}
+
+
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%
+
+%UI command definitions
+
+%%%%%%%%%%%%%%%%%%%%%%%%
+
+% setting up pgf keys:
+
+\pgfkeys{%
+	/UIPlus/.cd,
+	command/.code={%
+		\StrGobbleLeft{\string #1}{1}[\@UIPlusNascentCommandCsname]%
+	},
+	csname/.code={%
+		\edef\@UIPlusNascentCommandCsname{#1}%
+	},
+	arg spec/.code={%
+		\edef\@UIPlusNascentMeaningArgSpec{#1}%
+	},
+	meaning/.code={%
+		\edef\@UIPlusNascentMeaning{#1}%
+	},
+}
+
+\newcommand\@UIPlusMakeTFCodeDefinitionCommands[1]{% arg is a UI arg's call csname
+	\ifcsdef{Set#1Code}{% do nothing if true; nothing is necessary
+		}{%
+		\expandafter\NewDocumentCommand\csname Set#1Code\endcsname{t? t! m}{%
+			\expandafter\def\csname @UIPlusNascent#1TCode\endcsname{##3}%
+		}%
+		\expandafter\NewDocumentCommand\csname Set#1TCode\endcsname{t? t! m}{%
+			\expandafter\def\csname @UIPlusNascent#1TCode\endcsname{##3}%
+		}%
+		\expandafter\NewDocumentCommand\csname Set#1FCode\endcsname{t? t! m}{%
+			\expandafter\def\csname @UIPlusNascent#1FCode\endcsname{##3}%
+		}%
+		\expandafter\NewDocumentCommand\csname Set#1TFCode\endcsname{t? t! mm}{%
+			\expandafter\def\csname @UIPlusNascent#1TCode\endcsname{##3}%
+			\expandafter\def\csname @UIPlusNascent#1FCode\endcsname{##4}%
+		}%
+		\pgfkeys{%
+			/UIPlus/.cd,
+			set #1 code T/.code={%
+				\expandafter\edef\csname @UIPlusNascent#1TCode\endcsname{##1}%
+			},
+			set #1 code F/.code={%
+				\expandafter\edef\csname @UIPlusNascent#1FCode\endcsname{##1}%
+			},
+		}%
+		\expandafter\def\csname @UIPlusNascent#1FCode\endcsname{\relax}%
+		\expandafter\def\csname @UIPlusNascent#1TCode\endcsname{\relax}%
+	}%
+}
+
+
+
+\newcommand\@UIPlusReDefCommandsForCommandType[1]{% arg is command type
+	\@UIPlusUpdateUIArgSpec{#1}%
+	\edef\@UIPlusCurrentArgSpec{\csname @UIPlus\@UIPlusCurrentCommandType UIArgSpec\endcsname}%
+	\forlistcsloop{\@UIPlusRedefCommandsIterator{#1}}{@UIPlus#1UserCsnameList}%
+}
+
+	\newcommand\@UIPlusRedefCommandsIterator[2]{% first arg is command type, second arg is csname of command to be redef'd
+		\ExpandArgs{xx}\@UIPlusExecuteDeclareCommandDefinition{#1}{#2}%
+	}
+
+
+
+
+
+\newcommand\@UIPlusExecuteNewCommandDefinition[2]{% arg 1=command type, arg 2 = nascent command csname
+	\expandafter\expandafter\expandafter\NewDocumentCommand%
+		\expandafter\csname \expandafter#2\expandafter\endcsname\expandafter{\@UIPlusCurrentArgSpec}%
+		{%
+		\edef\@UIPlusCurrentCommandCsname{#2}%
+		\csname @UIPlus#1UIArgCheck\endcsname%
+		\ifUIPlusDoCurrentUserCommand%
+			\expandafter\csname #2Meaning\expandafter\endcsname%
+		\fi%
+	}%
+}
+
+\newcommand\@UIPlusExecuteRenewCommandDefinition[2]{% arg 1=command type, arg 2 = nascent command csname
+	\expandafter\expandafter\expandafter\RenewDocumentCommand%
+		\expandafter\csname \expandafter#2\expandafter\endcsname\expandafter{\@UIPlusCurrentArgSpec}%
+		{%
+		\edef\@UIPlusCurrentCommandCsname{#2}%
+		\csname @UIPlus#1UIArgCheck\endcsname%
+		\ifUIPlusDoCurrentUserCommand%
+			\expandafter\csname #2Meaning\expandafter\endcsname%
+		\fi%
+	}%
+}
+
+\newcommand\@UIPlusExecuteProvideCommandDefinition[2]{% arg 1=command type, arg 2 = nascent command csname
+	\expandafter\expandafter\expandafter\ProvideDocumentCommand%
+		\expandafter\csname \expandafter#2\expandafter\endcsname\expandafter{\@UIPlusCurrentArgSpec}%
+		{%
+		\edef\@UIPlusCurrentCommandCsname{#2}%
+		\csname @UIPlus#1UIArgCheck\endcsname%
+		\ifUIPlusDoCurrentUserCommand%
+			\expandafter\csname #2Meaning\expandafter\endcsname%
+		\fi%
+	}%
+}
+
+\newcommand\@UIPlusExecuteDeclareCommandDefinition[2]{% arg 1=command type, arg 2 = nascent command csname
+	\expandafter\expandafter\expandafter\DeclareDocumentCommand%
+		\expandafter\csname \expandafter#2\expandafter\endcsname\expandafter{\@UIPlusCurrentArgSpec}%
+		{%
+		\edef\@UIPlusCurrentCommandCsname{#2}%
+		\csname @UIPlus#1UIArgCheck\endcsname%
+		\ifUIPlusDoCurrentUserCommand%
+			\expandafter\csname #2Meaning\expandafter\endcsname%
+		\fi%
+	}%
+}
+
+\newcommand\@UIPlusRemoveFromOldCommandTypeCsnameList[1]{% arg is counter
+	\ExpandArgs{xx}\listcsgremove{@UIPlusOld#1\@UIPlusCurrentCommandType UserCsnameList}{\@UIPlusNascentCommandCsname}%
+}
+
+\newcommand\@UIPlusCreateUserCommandDefinitionCommands[1]{
+	\edef\@UIPlusCurrentCommandType{#1}%
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	%
+	% Successive command new UI command definition
+	% note that UI arg process info defines the commands to set T/F Code
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	\expandafter\DeclareDocumentCommand\expandafter{\csname New\@UIPlusCurrentCommandType Command\endcsname}{mm+m}{%
+		\edef\@UIPlusCurrentCommandType{#1}%
+		\StrGobbleLeft{\string ##1}{1}[\@UIPlusNascentCommandCsname]%
+		\expandafter\NewDocumentCommand\csname \@UIPlusNascentCommandCsname Meaning\endcsname{##2}{##3}% defines command without UI stuff
+		\@UIPlusSetUIArgCallCode{\@UIPlusNascentCommandCsname}% sets T/F Code for all UI args for the upcoming command
+		\edef\@UIPlusCurrentArgSpec{\csname @UIPlus\@UIPlusCurrentCommandType UIArgSpec\endcsname}%
+		\ExpandArgs{xx}\@UIPlusExecuteNewCommandDefinition{\@UIPlusCurrentCommandType}{\@UIPlusNascentCommandCsname}%
+		\listcsxadd{@UIPlus#1UserCsnameList}{\@UIPlusNascentCommandCsname}%
+	}%
+	\expandafter\DeclareDocumentCommand\expandafter{\csname Renew\@UIPlusCurrentCommandType Command\endcsname}{mm+m}{%
+		\edef\@UIPlusCurrentCommandType{#1}%
+		\StrGobbleLeft{\string ##1}{1}[\@UIPlusNascentCommandCsname]%
+		\expandafter\RenewDocumentCommand\csname \@UIPlusNascentCommandCsname Meaning\endcsname{##2}{##3}% defines command without UI stuff
+		\@UIPlusSetUIArgCallCode{\@UIPlusNascentCommandCsname}% sets T/F Code for all UI args for the upcoming command
+		\ifcsdef{\@UIPlusNascentCommandCsname}%
+			{%
+			\forlistcsloop\@UIPlusRemoveFromOldCommandTypeCsnameList{@UIPlus\@UIPlusCurrentCommandType OldCommandTypesList}%
+			}{%Not defined before -> can't be in a usercsname list
+		}%
+		\edef\@UIPlusCurrentArgSpec{\csname @UIPlus\@UIPlusCurrentCommandType UIArgSpec\endcsname}%
+		\ExpandArgs{xx}\@UIPlusExecuteRenewCommandDefinition{\@UIPlusCurrentCommandType}{\@UIPlusNascentCommandCsname}%
+		\xifinlistcs{\@UIPlusNascentCommandCsname}{@UIPlus#1UserCsnameList}%
+			{% In list already -> do nothing
+			}{% must be added to list (accounts for case of a redefinition of a command type and then the redefinition of a command that was redefined under the Old(number)<commandtypename> command type)
+			\listcsxadd{@UIPlus#1UserCsnameList}{\@UIPlusNascentCommandCsname}%
+		}%
+	}%
+	\expandafter\DeclareDocumentCommand\expandafter{\csname Provide\@UIPlusCurrentCommandType Command\endcsname}{mm+m}{%
+		\edef\@UIPlusCurrentCommandType{#1}%
+		\StrGobbleLeft{\string ##1}{1}[\@UIPlusNascentCommandCsname]%
+		\ifcsdef{\@UIPlusNascentCommandCsname}%
+			{% def'ed already -> do nothing
+			}{%	
+			\expandafter\ProvideDocumentCommand\csname \@UIPlusNascentCommandCsname Meaning\endcsname{##2}{##3}% defines command without UI stuff
+			\@UIPlusSetUIArgCallCode{\@UIPlusNascentCommandCsname}% sets T/F Code for all UI args for the upcoming command
+			\edef\@UIPlusCurrentArgSpec{\csname @UIPlus\@UIPlusCurrentCommandType UIArgSpec\endcsname}%
+			\ExpandArgs{xx}\@UIPlusExecuteProvideCommandDefinition{\@UIPlusCurrentCommandType}{\@UIPlusNascentCommandCsname}%
+			\listcsxadd{@UIPlus#1UserCsnameList}{\@UIPlusNascentCommandCsname}%
+		}%
+	}%
+	\expandafter\DeclareDocumentCommand\expandafter{\csname Declare\@UIPlusCurrentCommandType Command\endcsname}{mm+m}{%
+		\edef\@UIPlusCurrentCommandType{#1}%
+		\StrGobbleLeft{\string ##1}{1}[\@UIPlusNascentCommandCsname]%
+		\expandafter\DeclareDocumentCommand\csname \@UIPlusNascentCommandCsname Meaning\endcsname{##2}{##3}% defines command without UI stuff
+		\@UIPlusSetUIArgCallCode{\@UIPlusNascentCommandCsname}% sets T/F Code for all UI args for the upcoming command
+		\ifcsdef{\@UIPlusNascentCommandCsname}%
+			{% if command already exists, must do old command type check
+			\forlistcsloop\@UIPlusRemoveFromOldCommandTypeCsnameList{@UIPlus\@UIPlusCurrentCommandType OldCommandTypesList}%
+			}{%
+		}%
+		\edef\@UIPlusCurrentArgSpec{\csname @UIPlus\@UIPlusCurrentCommandType UIArgSpec\endcsname}%
+		\ExpandArgs{xx}\@UIPlusExecuteDeclareCommandDefinition{\@UIPlusCurrentCommandType}{\@UIPlusNascentCommandCsname}%
+		\xifinlistcs{\@UIPlusNascentCommandCsname}{@UIPlus#1UserCsnameList}%
+			{% In list already -> do nothing
+			}{% must be added to list (accounts for case of a redefinition of a command type and then the redefinition of a command that was redefined under the Old(number)<commandtypename> command type)
+			\listcsxadd{@UIPlus#1UserCsnameList}{\@UIPlusNascentCommandCsname}%
+		}%
+	}%
+}
+
+
+
+
