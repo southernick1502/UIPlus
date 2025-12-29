@@ -5,7 +5,7 @@
 \RequirePackage{etoolbox}
 \RequirePackage{pgfkeys}
 
-\newcommand\showwithwarning[1]{\PackageWarning{UIPlus}{#1}}
+
 %%%%%%%%%%%%%%%%
 
 % options
@@ -447,9 +447,7 @@
 		\UIPlusOldNewUIArgsSamefalse%
 	\fi%
 	\ifUIPlusOldNewUIArgsSame%
-		\showwithwarning{Same New and Old UIArgs}%
 	\else%
-		\showwithwarning{Different new and old UIArgs}%
 		\stepcounter{@UIPlus\@UIPlusNascentCommandTypeName TimesRedef}%
 		\listcsxadd{@UIPlus\@UIPlusNascentCommandTypeName OldCommandTypesList}{\arabic{@UIPlus\@UIPlusNascentCommandTypeName TimesRedef}}%
 		\ExpandArgs{x}\@UIPlusSetOldUserCommandsToSeparateCommandType{Old\arabic{@UIPlus\@UIPlusNascentCommandTypeName TimesRedef}\@UIPlusNascentCommandTypeName}%
@@ -474,7 +472,6 @@
 
 % Still need to get UIArg lists and checks ready and then do the redefinition
 \newcommand\@UIPlusSetOldUserCommandsToSeparateCommandType[1]{% arg is the new command type name as a placeholder for OLD user csnames
-	\showwithwarning{New Command Type: #1}%
 	\ExpandArgs{x}\@UIPlusGetListSize{@UIPlus\@UIPlusNascentCommandTypeName UserCsnameList}%
 	\ifnum\value{@UIPlusCurrentListSize}>0%
 		\expandafter\edef\csname @UIPlus#1UIArgCsvList\endcsname{\csname @UIPlus\@UIPlusNascentCommandTypeName UIArgCsvList\endcsname}% saving old csv list for use later
@@ -484,7 +481,6 @@
 		\listxadd\@UIPlusAllCommandTypeNameList{#1}%
 		\expandafter\listgadd\expandafter\@UIPlusCommandTypeUIArgsCsvListsList\expandafter{\csname @UIPlus#1UIArgCsvList\expandafter\endcsname}%
 		\edef\@UIPlusCurrentArgSpec{\csname @UIPlus#1UIArgSpec\endcsname}%
-		\showwithwarning{Csname: @UIPlus#1UIArgSpec -> \meaning\@UIPlusCurrentArgSpec}%
 		\forlistcsloop{\@UIPlusSetOldUserCommandsToSeparateCommandTypeIterator{#1}}{@UIPlus\@UIPlusNascentCommandTypeName UserCsnameList}%
 		\expandafter\def\csname @UIPlus\@UIPlusNascentCommandTypeName UserCsnameList\endcsname{}% reset old list
 	\fi%
